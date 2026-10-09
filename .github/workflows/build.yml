@@ -19,11 +19,13 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
+    # SỬA LỖI Ở ĐÂY: Nâng cấp lên v4 để tương thích với Node.js 24
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@v4
 
+    # SỬA LỖI Ở ĐÂY: Nâng cấp setup-gradle lên v4
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
+      uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.2'
 
@@ -80,17 +82,13 @@ jobs:
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             xmlns:tools="http://schemas.android.com/tools">
-            <!-- Quyền Mạng & Proxy -->
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-            <!-- Quyền Danh bạ -->
             <uses-permission android:name="android.permission.READ_CONTACTS" />
             <uses-permission android:name="android.permission.WRITE_CONTACTS" />
-            <!-- Quyền GPS Giả lập -->
             <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION" tools:ignore="MockLocation" />
             <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
             <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-            <!-- Quyền vẽ lên màn hình -->
             <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
@@ -167,274 +165,4 @@ jobs:
                 <TextView android:id="@+id/tvNet" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="[NET] Đang kiểm tra..." android:textColor="#FFF" android:background="#111" android:padding="15dp" android:layout_marginBottom="10dp"/>
                 
                 <Button android:id="@+id/btnVpn" android:layout_width="match_parent" android:layout_height="60dp" android:text="Khởi động VPN Tunneling (Core)" android:backgroundTint="#1A1A1A" android:textColor="#00E676" android:layout_marginTop="20dp"/>
-                <Button android:id="@+id/btnGps" android:layout_width="match_parent" android:layout_height="60dp" android:text="Ghi đè GPS (Tokyo, Japan)" android:backgroundTint="#1A1A1A" android:textColor="#FFF" android:layout_marginTop="8dp"/>
-                <Button android:id="@+id/btnContact" android:layout_width="match_parent" android:layout_height="60dp" android:text="Bơm Danh bạ Random (+81)" android:backgroundTint="#1A1A1A" android:textColor="#FFF" android:layout_marginTop="8dp"/>
-                <Button android:id="@+id/btnAuto" android:layout_width="match_parent" android:layout_height="60dp" android:text="Bật Accessibility (Auto LINE/GG)" android:backgroundTint="#00E676" android:textColor="#000" android:textStyle="bold" android:layout_marginTop="20dp"/>
-            </LinearLayout>
-        </ScrollView>
-        EOF
-
-        # ==========================================
-        # 5. CODE KOTLIN: MDM RECEIVER
-        # ==========================================
-        cat << 'EOF' > app/src/main/java/com/binlite/mdm/core/MyDeviceAdminReceiver.kt
-        package com.binlite.mdm.core
-        import android.app.admin.DeviceAdminReceiver
-        import android.content.Context
-        import android.content.Intent
-        import android.widget.Toast
-        class MyDeviceAdminReceiver : DeviceAdminReceiver() {
-            override fun onEnabled(context: Context, intent: Intent) {
-                super.onEnabled(context, intent)
-                Toast.makeText(context, "Binlite FULL: Thiết bị đã bị kiểm soát!", Toast.LENGTH_LONG).show()
-            }
-        }
-        EOF
-
-        # ==========================================
-        # 6. CODE KOTLIN: MOCK GPS SERVICE (THỰC TẾ)
-        # ==========================================
-        cat << 'EOF' > app/src/main/java/com/binlite/mdm/services/MockLocationService.kt
-        package com.binlite.mdm.services
-        import android.content.Context
-        import android.location.Location
-        import android.location.LocationManager
-        import android.os.SystemClock
-        import android.widget.Toast
-
-        object MockLocationService {
-            fun startSpoofing(context: Context) {
-                try {
-                    val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                    lm.addTestProvider(LocationManager.GPS_PROVIDER, false, false, false, false, true, true, true, 0, 5)
-                    lm.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true)
-
-                    val loc = Location(LocationManager.GPS_PROVIDER)
-                    loc.latitude = 35.6762  // Tokyo
-                    loc.longitude = 139.6503
-                    loc.altitude = 10.0
-                    loc.accuracy = 5.0f
-                    loc.time = System.currentTimeMillis()
-                    loc.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
-
-                    lm.setTestProviderLocation(LocationManager.GPS_PROVIDER, loc)
-                    Toast.makeText(context, "Đã ghi đè GPS: TOKYO, JAPAN", Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Cần cấp quyền Mock Location qua Developer Options hoặc MDM", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-        EOF
-
-        # ==========================================
-        # 7. CODE KOTLIN: CONTACT INJECTOR (THỰC TẾ)
-        # ==========================================
-        cat << 'EOF' > app/src/main/java/com/binlite/mdm/utils/ContactManager.kt
-        package com.binlite.mdm.utils
-        import android.content.ContentProviderOperation
-        import android.content.Context
-        import android.provider.ContactsContract
-        import android.widget.Toast
-        import kotlin.random.Random
-
-        object ContactManager {
-            fun injectJapaneseContacts(context: Context) {
-                try {
-                    val ops = ArrayList<ContentProviderOperation>()
-                    val rawContactInsertIndex = ops.size
-
-                    // Generate Random Japanese Number (+81 90-XXXX-XXXX)
-                    val p1 = Random.nextInt(1000, 9999)
-                    val p2 = Random.nextInt(1000, 9999)
-                    val phone = "+8190$p1$p2"
-                    val name = "Sato JP $p1"
-
-                    ops.add(ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null).build())
-
-                    ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawContactInsertIndex)
-                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
-                        .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, name).build())
-
-                    ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawContactInsertIndex)
-                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, phone)
-                        .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE).build())
-
-                    context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
-                    Toast.makeText(context, "Đã bơm số: $phone", Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Lỗi DB hoặc thiếu quyền hệ thống!", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        EOF
-
-        # ==========================================
-        # 8. CODE KOTLIN: ACCESSIBILITY AUTOMATION (LOGIC QUÉT MÀN HÌNH)
-        # ==========================================
-        cat << 'EOF' > app/src/main/java/com/binlite/mdm/services/AutomationService.kt
-        package com.binlite.mdm.services
-        import android.accessibilityservice.AccessibilityService
-        import android.view.accessibility.AccessibilityEvent
-        import android.view.accessibility.AccessibilityNodeInfo
-        import android.util.Log
-
-        class AutomationService : AccessibilityService() {
-            override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-                val rootNode = rootInActiveWindow ?: return
-                // Đệ quy tìm kiếm các nút bấm trên màn hình
-                findAndClickNode(rootNode, "Sign in")
-                findAndClickNode(rootNode, "Đăng nhập")
-                findAndClickNode(rootNode, "Next")
-            }
-
-            private fun findAndClickNode(node: AccessibilityNodeInfo, textToFind: String) {
-                if (node.text != null && node.text.toString().contains(textToFind, ignoreCase = true)) {
-                    if (node.isClickable) {
-                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        Log.d("BINLITE", "Tự động click: $textToFind")
-                    } else {
-                        // Nếu text không click được, click vào view cha của nó
-                        var parent = node.parent
-                        while (parent != null) {
-                            if (parent.isClickable) {
-                                parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                break
-                            }
-                            parent = parent.parent
-                        }
-                    }
-                }
-                for (i in 0 until node.childCount) {
-                    val child = node.getChild(i)
-                    if (child != null) {
-                        findAndClickNode(child, textToFind)
-                        child.recycle()
-                    }
-                }
-            }
-
-            override fun onInterrupt() {}
-        }
-        EOF
-
-        # ==========================================
-        # 9. CODE KOTLIN: VPN TUNNEL SKELETON
-        # ==========================================
-        cat << 'EOF' > app/src/main/java/com/binlite/mdm/services/AnonymousVpnService.kt
-        package com.binlite.mdm.services
-        import android.content.Intent
-        import android.net.VpnService
-        import android.os.ParcelFileDescriptor
-        import android.widget.Toast
-
-        class AnonymousVpnService : VpnService() {
-            private var vpnInterface: ParcelFileDescriptor? = null
-
-            override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-                setupVpn()
-                return START_STICKY
-            }
-
-            private fun setupVpn() {
-                try {
-                    val builder = Builder()
-                    builder.addAddress("10.0.0.2", 24)
-                    builder.addRoute("0.0.0.0", 0) // Định tuyến toàn bộ Internet vào Tunnel
-                    builder.addDnsServer("8.8.8.8")
-                    builder.setSession("BinliteTunnel")
-                    builder.setBlocking(true)
-                    
-                    vpnInterface = builder.establish()
-                    // Tại đây: Cần tích hợp Xray-core binary bằng NDK (C++) để xử lý packet
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-
-            override fun onDestroy() {
-                vpnInterface?.close()
-                super.onDestroy()
-            }
-        }
-        EOF
-
-        # ==========================================
-        # 10. CODE KOTLIN: MAIN ACTIVITY
-        # ==========================================
-        cat << 'EOF' > app/src/main/java/com/binlite/mdm/MainActivity.kt
-        package com.binlite.mdm
-
-        import android.app.admin.DevicePolicyManager
-        import android.content.Context
-        import android.content.Intent
-        import android.graphics.Color
-        import android.net.VpnService
-        import android.os.Bundle
-        import android.provider.Settings
-        import android.widget.Button
-        import android.widget.TextView
-        import androidx.appcompat.app.AppCompatActivity
-        import com.binlite.mdm.services.MockLocationService
-        import com.binlite.mdm.services.AnonymousVpnService
-        import com.binlite.mdm.utils.ContactManager
-
-        class MainActivity : AppCompatActivity() {
-            override fun onCreate(savedInstanceState: Bundle?) {
-                super.onCreate(savedInstanceState)
-                setContentView(R.layout.activity_main)
-
-                val tvMdm = findViewById<TextView>(R.id.tvMdm)
-                val tvNet = findViewById<TextView>(R.id.tvNet)
-
-                // 1. Check MDM
-                val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-                if (dpm.isDeviceOwnerApp(packageName)) {
-                    tvMdm.text = "[MDM] ROOT OWNER: KÍCH HOẠT THÀNH CÔNG"
-                    tvMdm.setTextColor(Color.parseColor("#00E676"))
-                } else {
-                    tvMdm.text = "[MDM] CẢNH BÁO: CHƯA CÓ QUYỀN SYSTEM"
-                    tvMdm.setTextColor(Color.parseColor("#FF3D00"))
-                }
-
-                // 2. Nút VPN
-                findViewById<Button>(R.id.btnVpn).setOnClickListener {
-                    val vpnIntent = VpnService.prepare(this)
-                    if (vpnIntent != null) startActivityForResult(vpnIntent, 0)
-                    else {
-                        startService(Intent(this, AnonymousVpnService::class.java))
-                        tvNet.text = "[NET] STATUS: TUNNELING CHUẨN BỊ (PROXY JP)"
-                        tvNet.setTextColor(Color.parseColor("#00E676"))
-                    }
-                }
-
-                // 3. Nút GPS
-                findViewById<Button>(R.id.btnGps).setOnClickListener {
-                    MockLocationService.startSpoofing(this)
-                }
-
-                // 4. Nút Danh bạ
-                findViewById<Button>(R.id.btnContact).setOnClickListener {
-                    ContactManager.injectJapaneseContacts(this)
-                }
-
-                // 5. Nút Auto
-                findViewById<Button>(R.id.btnAuto).setOnClickListener {
-                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                }
-            }
-        }
-        EOF
-
-    - name: Build APK bang Gradle
-      run: gradle assembleDebug
-
-    - name: Upload APK Full
-      uses: actions/upload-artifact@v4
-      with:
-        name: binlite-full-enterprise
-        path: app/build/outputs/apk/debug/app-debug.apk
+                <Button android:id="@+id/btn
